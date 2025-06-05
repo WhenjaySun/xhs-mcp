@@ -21,7 +21,7 @@ COPY . /app/
 RUN pip install uv
 
 # 使用 uv 安装项目依赖
-RUN uv sync
+RUN uv venv .venv --python python3 && uv sync
 
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1
