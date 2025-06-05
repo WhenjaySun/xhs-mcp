@@ -127,6 +127,59 @@ class XhsApi:
         headers['x-t']=str(xsxt['X-t'])
         return await self.request(**p,headers=headers)
 
+    async def get_user_notes(self, user_id: str) -> List[Dict[str, str]]:
+        uri = "/api/sns/web/v1/user_posted"
+        params_dict = {
+            "num": "30",
+            "cursor": "",
+            "user_id": user_id,
+            "image_formats": "jpg,webp,avif", # As per reference for this endpoint
+            "xsec_token": "", # As per reference for this endpoint
+            "xsec_source": "pc_note"
+        }
+
+        # For GET requests with URL params, xsxt needs the uri with encoded params
+        # and data should be None for get_xs_xt
+        params_encoded_string = urlencode(params_dict)
+        # The get_xs_xt in xhsvm.js might expect the URI without query params for GET.
+        # The reference code for user_posted (GET) passes uri + query string to generate signature.
+        # Let's assume uri for get_xs_xt should be path only, and params are handled by the JS internally if needed,
+        # or that the JS function is robust enough.
+        # However, the reference code explicitly builds the path with query string for signing.
+        # Let's stick to the reference: uri + query string for signing.
+        uri_for_xsxt = f"{uri}?{params_encoded_string}"
+        
+        # Prepare headers with x-s and x-t
+        # Create a new dictionary for headers to avoid modifying self._headers
+        request_headers = self._headers.copy() 
+        xsxt_str = self.get_xs_xt(uri_for_xsxt, None, self._cookie) # data is None for GET
+        xsxt = json.loads(xsxt_str)
+        request_headers['x-s'] = xsxt['X-s']
+        request_headers['x-t'] = str(xsxt['X-t'])
+
+        response_data = await self.request(
+            uri=uri, # self.request takes path only
+            method="GET",
+            params=params_dict, # self.request will encode this
+            headers=request_headers
+        )
+        
+        note_details_list = []
+        # Check if response_data is not None and if 'success' key exists and is True
+        if response_data and response_data.get("success") is True:
+            notes_data = response_data.get("data", {})
+            if notes_data: # Ensure data field is not None
+                notes = notes_data.get("notes", [])
+                for note in notes:
+                    note_id_val = note.get("note_id")
+                    xsec_token_val = note.get("xsec_token") # Get xsec_token
+                    if note_id_val and xsec_token_val is not None: # Ensure both are present
+                        note_details_list.append({"note_id": note_id_val, "xsec_token": xsec_token_val})
+        # Consider logging if success is False or data is not as expected
+        # else:
+            # print(f"Failed to get user notes or unexpected response: {response_data}")
+        return note_details_list
+
 
     async def get_note_content(self, note_id: str, xsec_token: str) -> Dict:
         data = {
@@ -180,4 +233,3 @@ class XhsApi:
         headers['x-s'] = xsxt['X-s']
         headers['x-t'] = str(xsxt['X-t'])
         return await self.request(uri, method="POST",headers=headers, data=data)
-

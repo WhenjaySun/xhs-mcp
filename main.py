@@ -112,6 +112,37 @@ async def search_notes(keywords: str) -> str:
 
 
 @mcp.tool()
+async def get_user_note_list(user_id: str) -> str:
+    """获取指定用户的笔记ID列表
+
+    Args:
+        user_id: 用户ID
+    """
+    try:
+        note_details_list = await xhs_api.get_user_notes(user_id) # Changed variable name for clarity
+        if note_details_list:
+            result = f"用户 {user_id} 的笔记详情列表 (note_id, xsec_token)：\n" # Updated title
+            for i, note_detail in enumerate(note_details_list):
+                # Format to include both note_id and xsec_token
+                result += f"{i+1}. note_id: {note_detail['note_id']}, xsec_token: {note_detail['xsec_token']}\n"
+            return result.strip()
+        else:
+            # Check if cookie is valid to differentiate between no notes and other issues
+            cookie_status = await check_cookie()
+            if "有效" in cookie_status:
+                return f"未能获取到用户 {user_id} 的笔记列表，该用户可能没有发布笔记或用户ID无效。"
+            else:
+                return cookie_status # Cookie invalid
+    except Exception as e:
+        logger.error(f"Error fetching notes for user {user_id}: {e}")
+        # Fallback to check_cookie status if an unexpected error occurs
+        cookie_status = await check_cookie()
+        if "有效" in cookie_status:
+             return f"获取用户 {user_id} 笔记列表时发生错误。"
+        return cookie_status
+
+
+@mcp.tool()
 async def get_note_content(url: str) -> str:
     """获取笔记内容,参数url要带上xsec_token
 
